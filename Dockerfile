@@ -17,9 +17,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
+# Installer les dépendances Composer
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --ignore-platform-reqs
 
-RUN chmod -R 777 storage bootstrap/cache
+# Créer les dossiers storage et bootstrap/cache s'ils n'existent pas, puis donner les permissions
+RUN mkdir -p storage bootstrap/cache && chmod -R 777 storage bootstrap/cache
 
 # Copier et rendre exécutable le script de démarrage
 COPY entrypoint.sh /entrypoint.sh
