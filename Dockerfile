@@ -17,13 +17,14 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
-# Installer les dépendances sans exécuter les scripts automatiques (--no-scripts)
 RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --ignore-platform-reqs
 
-# Assurer les permissions sur le stockage
 RUN chmod -R 777 storage bootstrap/cache
+
+# Copier et rendre exécutable le script de démarrage
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 10000
 
-# Exécuter les scripts, migrations et démarrage au runtime (avec les variables d'environnement)
-CMD php artisan package:discover --ansi && php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}
+ENTRYPOINT ["/entrypoint.sh"]
