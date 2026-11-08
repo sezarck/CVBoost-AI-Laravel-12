@@ -1,6 +1,5 @@
 FROM php:8.2-cli
 
-# Installer les dépendances système et les extensions PHP requises
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -13,18 +12,18 @@ RUN apt-get update && apt-get install -y \
     zip \
     && docker-php-ext-install pdo pdo_pgsql mbstring xml curl zip bcmath gd opcache
 
-# Installer Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 COPY . .
 
-# Installer les dépendances en ignorant les contraintes de plate-forme bloquantes
-RUN composer install --no-dev --optimize-autoloader --no-interaction --ignore-platform-reqs
+# Installer les dépendances sans exécuter les scripts automatiques (--no-scripts)
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts --ignore-platform-reqs
 
 # Assurer les permissions sur le stockage
 RUN chmod -R 777 storage bootstrap/cache
 
 EXPOSE 10000
 
-CMD php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}
+# Exécuter les scripts, migrations et démarrage au runtime (avec les variables d'environnement)
+CMD php artisan package:discover --ansi && php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}
