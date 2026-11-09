@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+echo "Création et vérification des dossiers de stockage..."
+mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs
+chmod -R 775 storage bootstrap/cache
+
 echo "Running configuration and migrations..."
 php artisan config:clear
 php artisan migrate --force
