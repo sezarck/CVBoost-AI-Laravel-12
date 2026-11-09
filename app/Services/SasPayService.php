@@ -27,6 +27,7 @@ class SasPayService
         $response = $this->client()->post('/checkout-sessions/', $payload);
 
         if (!$response->successful()) {
+            \Illuminate\Support\Facades\Log::warning('SasPay checkout 4xx/5xx response', ['status' => $response->status(), 'body' => mb_substr($response->body(), 0, 1000)]);
             $code = $response->json('error.code') ?? $response->json('code');
             throw new RuntimeException('SasPay checkout session failed: HTTP '.$response->status().($code ? ' ('.$code.')' : ''));
         }
