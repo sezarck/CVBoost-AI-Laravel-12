@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class SasPayService
@@ -27,7 +28,20 @@ class SasPayService
         $response = $this->client()->post('/checkout-sessions/', $payload);
 
         if (!$response->successful()) {
-            $code = $response->json('error.code') ?? $response->json('code');
+            $body = $response->json();
+            $body = is_array($body) ? $body : [];
+            $error = is_array($body['error'] ?? null) ? $body['error'] : [];
+            $code = $error['code'] ?? $body['code'] ?? null;
+            $message = $body['message'] ?? $error['message'] ?? null;
+            $errors = $body['errors'] ?? $error['errors'] ?? [];
+
+            Log::warning('SasPay rejected checkout session request', [
+                'http_status' => $response->status(),
+                'provider_code' => is_scalar($code) ? (string) $code : null,
+                'provider_message' => is_string($message) ? mb_substr($message, 0, 300) : null,
+                'validation_fields' => is_array($errors) ? array_slice(array_map('strval', array_keys($errors)), 0, 20) : [],
+            ]);
+
             throw new RuntimeException('SasPay checkout session failed: HTTP '.$response->status().($code ? ' ('.$code.')' : ''));
         }
 
