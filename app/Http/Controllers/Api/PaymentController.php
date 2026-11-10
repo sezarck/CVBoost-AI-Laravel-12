@@ -62,7 +62,7 @@ class PaymentController extends Controller
 
         try {
             $checkoutPayload = [
-                'amount' => number_format($amount, 2, '.', ''),
+                'amount' => (int) $amount, // CORRECTION : Passage en entier brut
                 'currency' => $currency,
                 'description' => 'Exportation du CV '.$cv->title,
                 'country' => config('services.saspay.country', 'CM'),
@@ -75,8 +75,14 @@ class PaymentController extends Controller
                     'cv_id' => (string) $cv->id,
                 ],
             ];
+
             if (!empty($data['phone_number'])) {
                 $checkoutPayload['customer_phone'] = $data['phone_number'];
+            }
+
+            // CORRECTION : Ajout indispensable de l'opérateur
+            if (!empty($data['operator'])) {
+                $checkoutPayload['operator'] = $data['operator'];
             }
 
             $session = $saspay->createCheckoutSession($checkoutPayload);
