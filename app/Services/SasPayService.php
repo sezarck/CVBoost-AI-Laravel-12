@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class SasPayService
@@ -25,8 +26,13 @@ class SasPayService
 
     public function createCheckoutSession(array $payload): array
     {
-        // CORRECTION : Suppression du slash final pour éviter l'erreur 400 Bad Request
-        $response = $this->client()->post('/checkout-sessions', $payload);
+        // CORRECTION : Utilisation de l'endpoint officiel /payments/softpay/ exigé par la doc SasPay
+        // Et transmission d'une Idempotency-Key unique pour éviter les rejets
+        $response = $this->client()
+            ->withHeaders([
+                'Idempotency-Key' => (string) Str::uuid(),
+            ])
+            ->post('/payments/softpay/', $payload);
 
         if (!$response->successful()) {
             $body = $response->json();
@@ -63,7 +69,7 @@ class SasPayService
                 'provider_message' => $safeMessage !== null ? mb_substr($safeMessage, 0, 300) : null,
                 'validation_fields' => is_array($errors) ? array_slice(array_map('strval', array_keys($errors)), 0, 20) : [],
                 'provider_body_excerpt' => $bodyExcerpt,
-                'raw_response' => $response->body(), // Ajout pour capturer le texte brut exact
+                'raw_response' => $response->body(),
             ]);
 
             throw new RuntimeException('SasPay checkout session failed: HTTP '.$response->status().($code ? ' ('.$code.')' : ''));
@@ -85,7 +91,8 @@ class SasPayService
 
     public function verifyPayment(string $paymentId): array
     {
-        $response = $this->client()->get('/payments/'.rawurlencode($paymentId).'/verify');
+        // Aligné sur la documentation : GET /payments/{payment_id}/verify/
+        $response = $this->client()->get('/payments/'.rawurlencode($paymentId).'/verify/');
 
         if (!$response->successful()) {
             throw new RuntimeException('SasPay payment verification failed: HTTP '.$response->status());
