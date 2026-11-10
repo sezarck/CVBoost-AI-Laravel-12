@@ -60,15 +60,26 @@ class PaymentController extends Controller
             ['payment' => $payment->id],
         );
 
+        // Forcer le HTTPS pour l'URL de retour exigé par SasPay
+        $returnUrl = str_replace('http://', 'https://', $returnUrl);
+
         try {
             $checkoutPayload = [
-                // ALIGNEMENT OFFICIEL : SasPay exige une chaîne décimale (ex: "500.00")
                 'amount' => number_format($amount, 2, '.', ''),
                 'currency' => $currency,
                 'description' => 'Exportation du CV '.$cv->title,
                 'country' => config('services.saspay.country', 'CM'),
-                'customer_email' => $request->user()->email,
-                'customer_name' => $request->user()->name,
+                
+                // Correction : Objet client requis par SasPay
+                'customer' => [
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'phone' => $data['phone_number'] ?? null,
+                ],
+
+                // Correction : Le champ network est requis au lieu de operator
+                'network' => $data['operator'] ?? 'MTN',
+
                 'return_url' => $returnUrl,
                 'metadata' => [
                     'local_payment_id' => (string) $payment->id,
@@ -76,14 +87,6 @@ class PaymentController extends Controller
                     'cv_id' => (string) $cv->id,
                 ],
             ];
-
-            if (!empty($data['phone_number'])) {
-                $checkoutPayload['customer_phone'] = $data['phone_number'];
-            }
-
-            if (!empty($data['operator'])) {
-                $checkoutPayload['operator'] = $data['operator'];
-            }
 
             $session = $saspay->createCheckoutSession($checkoutPayload);
 
