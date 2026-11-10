@@ -25,21 +25,45 @@ class SasPayService
 
     public function createCheckoutSession(array $payload): array
     {
-        $response = $this->client()->post('/checkout-sessions/', $payload);
+        // CORRECTION : Suppression du slash final pour éviter l'erreur 400 Bad Request
+        $response = $this->client()->post('/checkout-sessions', $payload);
 
         if (!$response->successful()) {
             $body = $response->json();
             $body = is_array($body) ? $body : [];
             $error = is_array($body['error'] ?? null) ? $body['error'] : [];
             $code = $error['code'] ?? $body['code'] ?? null;
-            $message = $body['message'] ?? $error['message'] ?? null;
+            $message = $body['message'] ?? $body['detail'] ?? $error['message'] ?? null;
+            if (!is_string($message) && is_string($body['error'] ?? null)) {
+                $message = $body['error'];
+            }
             $errors = $body['errors'] ?? $error['errors'] ?? [];
+            $bodyExcerpt = $response->body();
+            $safeMessage = is_string($message) ? $message : null;
+
+            foreach (['customer_email', 'customer_name', 'customer_phone', 'description', 'return_url'] as $key) {
+                $sensitiveValue = $payload[$key] ?? null;
+                if (is_string($sensitiveValue) && $sensitiveValue !== '') {
+                    $bodyExcerpt = str_replace($sensitiveValue, '[redacted]', $bodyExcerpt);
+                    $safeMessage = $safeMessage ? str_replace($sensitiveValue, '[redacted]', $safeMessage) : null;
+                }
+            }
+
+            $bodyExcerpt = preg_replace('/\bsk_(?:live|test)_[A-Za-z0-9_-]+\b/', '[redacted-secret]', $bodyExcerpt) ?? $bodyExcerpt;
+            $bodyExcerpt = preg_replace('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', '[redacted-email]', $bodyExcerpt) ?? $bodyExcerpt;
+            $bodyExcerpt = mb_substr(trim($bodyExcerpt), 0, 1000);
+            if ($safeMessage !== null) {
+                $safeMessage = preg_replace('/\bsk_(?:live|test)_[A-Za-z0-9_-]+\b/', '[redacted-secret]', $safeMessage) ?? $safeMessage;
+                $safeMessage = preg_replace('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', '[redacted-email]', $safeMessage) ?? $safeMessage;
+            }
 
             Log::warning('SasPay rejected checkout session request', [
                 'http_status' => $response->status(),
                 'provider_code' => is_scalar($code) ? (string) $code : null,
-                'provider_message' => is_string($message) ? mb_substr($message, 0, 300) : null,
+                'provider_message' => $safeMessage !== null ? mb_substr($safeMessage, 0, 300) : null,
                 'validation_fields' => is_array($errors) ? array_slice(array_map('strval', array_keys($errors)), 0, 20) : [],
+                'provider_body_excerpt' => $bodyExcerpt,
+                'raw_response' => $response->body(), // Ajout pour capturer le texte brut exact
             ]);
 
             throw new RuntimeException('SasPay checkout session failed: HTTP '.$response->status().($code ? ' ('.$code.')' : ''));
@@ -50,7 +74,7 @@ class SasPayService
 
     public function checkoutSessionStatus(string $sessionId): array
     {
-        $response = $this->client()->get('/checkout-sessions/'.rawurlencode($sessionId).'/status/');
+        $response = $this->client()->get('/checkout-sessions/'.rawurlencode($sessionId).'/status');
 
         if (!$response->successful()) {
             throw new RuntimeException('SasPay checkout status failed: HTTP '.$response->status());
@@ -61,7 +85,7 @@ class SasPayService
 
     public function verifyPayment(string $paymentId): array
     {
-        $response = $this->client()->get('/payments/'.rawurlencode($paymentId).'/verify/');
+        $response = $this->client()->get('/payments/'.rawurlencode($paymentId).'/verify');
 
         if (!$response->successful()) {
             throw new RuntimeException('SasPay payment verification failed: HTTP '.$response->status());
