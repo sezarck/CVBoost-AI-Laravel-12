@@ -39,7 +39,7 @@ class PaymentController extends Controller
         }
 
         $order = 'CVB-'.Str::upper(Str::random(18));
-        $amount = (int) config('services.cv.export_price', 500);
+        $amount = (float) config('services.cv.export_price', 500);
         $currency = strtoupper(config('services.cv.currency', 'XAF'));
 
         $payment = Payment::create([
@@ -62,7 +62,8 @@ class PaymentController extends Controller
 
         try {
             $checkoutPayload = [
-                'amount' => (int) $amount, // CORRECTION : Passage en entier brut
+                // ALIGNEMENT OFFICIEL : SasPay exige une chaîne décimale (ex: "500.00")
+                'amount' => number_format($amount, 2, '.', ''),
                 'currency' => $currency,
                 'description' => 'Exportation du CV '.$cv->title,
                 'country' => config('services.saspay.country', 'CM'),
@@ -80,7 +81,6 @@ class PaymentController extends Controller
                 $checkoutPayload['customer_phone'] = $data['phone_number'];
             }
 
-            // CORRECTION : Ajout indispensable de l'opérateur
             if (!empty($data['operator'])) {
                 $checkoutPayload['operator'] = $data['operator'];
             }
